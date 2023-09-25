@@ -1,447 +1,236 @@
-import pygame as pg
-import random, time, sys
-from pygame.locals import *
+from tkinter import *
+# импортируем библиотеку random
+import random
 
-fps = 25
-window_w, window_h = 600, 500
-block, cup_h, cup_w = 20, 20, 10
+# Добавляем глобальные переменные
 
-side_freq, down_freq = 0.15, 0.1  # передвижение в сторону и вниз
+# глобальные переменные
+# настройки окна
+WIDTH = 900
+HEIGHT = 300
 
-side_margin = int((window_w - cup_w * block) / 2)
-top_margin = window_h - (cup_h * block) - 5
+# настройки ракеток
 
-colors = ((0, 0, 225), (0, 225, 0), (225, 0, 0), (225, 225, 0))  # синий, зеленый, красный, желтый
-lightcolors = ((30, 30, 255), (50, 255, 50), (255, 30, 30),
-               (255, 255, 30))  # светло-синий, светло-зеленый, светло-красный, светло-желтый
+# ширина ракетки
+PAD_W = 10
+# высота ракетки
+PAD_H = 100
 
-white, gray, black = (255, 255, 255), (185, 185, 185), (0, 0, 0)
-brd_color, bg_color, txt_color, title_color, info_color = white, black, white, colors[3], colors[0]
+# настройки мяча
+# Насколько будет увеличиваться скорость мяча с каждым ударом
+BALL_SPEED_UP = 1.05
+# Максимальная скорость мяча
+BALL_MAX_SPEED = 40
+# радиус мяча
+BALL_RADIUS = 30
 
-fig_w, fig_h = 5, 5
-empty = 'o'
+INITIAL_SPEED = 10
+BALL_X_SPEED = INITIAL_SPEED
+BALL_Y_SPEED = INITIAL_SPEED
 
-figures = {'S': [['ooooo',
-                  'ooooo',
-                  'ooxxo',
-                  'oxxoo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxoo',
-                  'ooxxo',
-                  'oooxo',
-                  'ooooo']],
-           'Z': [['ooooo',
-                  'ooooo',
-                  'oxxoo',
-                  'ooxxo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxoo',
-                  'oxxoo',
-                  'oxooo',
-                  'ooooo']],
-           'J': [['ooooo',
-                  'oxooo',
-                  'oxxxo',
-                  'ooooo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxxo',
-                  'ooxoo',
-                  'ooxoo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooooo',
-                  'oxxxo',
-                  'oooxo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxoo',
-                  'ooxoo',
-                  'oxxoo',
-                  'ooooo']],
-           'L': [['ooooo',
-                  'oooxo',
-                  'oxxxo',
-                  'ooooo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxoo',
-                  'ooxoo',
-                  'ooxxo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooooo',
-                  'oxxxo',
-                  'oxooo',
-                  'ooooo'],
-                 ['ooooo',
-                  'oxxoo',
-                  'ooxoo',
-                  'ooxoo',
-                  'ooooo']],
-           'I': [['ooxoo',
-                  'ooxoo',
-                  'ooxoo',
-                  'ooxoo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooooo',
-                  'xxxxo',
-                  'ooooo',
-                  'ooooo']],
-           'O': [['ooooo',
-                  'ooooo',
-                  'oxxoo',
-                  'oxxoo',
-                  'ooooo']],
-           'T': [['ooooo',
-                  'ooxoo',
-                  'oxxxo',
-                  'ooooo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxoo',
-                  'ooxxo',
-                  'ooxoo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooooo',
-                  'oxxxo',
-                  'ooxoo',
-                  'ooooo'],
-                 ['ooooo',
-                  'ooxoo',
-                  'oxxoo',
-                  'ooxoo',
-                  'ooooo']]}
+# Счет игроков
+PLAYER_1_SCORE = 0
+PLAYER_2_SCORE = 0
+
+# Добавим глобальную переменную отвечающую за расстояние
+# до правого края игрового поля
+right_line_distance = WIDTH - PAD_W
 
 
-def pauseScreen():
-    pause = pg.Surface((600, 500), pg.SRCALPHA)
-    pause.fill((0, 0, 255, 127))
-    display_surf.blit(pause, (0, 0))
+def update_score(player):
+    global PLAYER_1_SCORE, PLAYER_2_SCORE
+    if player == "right":
+        PLAYER_1_SCORE += 1
+        c.itemconfig(p_1_text, text=PLAYER_1_SCORE)
+    else:
+        PLAYER_2_SCORE += 1
+        c.itemconfig(p_2_text, text=PLAYER_2_SCORE)
+
+
+def spawn_ball():
+    global BALL_X_SPEED
+    # Выставляем мяч по центру
+    c.coords(BALL, WIDTH / 2 - BALL_RADIUS / 2,
+             HEIGHT / 2 - BALL_RADIUS / 2,
+             WIDTH / 2 + BALL_RADIUS / 2,
+             HEIGHT / 2 + BALL_RADIUS / 2)
+    # Задаем мячу направление в сторону проигравшего игрока,
+    # но снижаем скорость до изначальной
+    BALL_X_SPEED = -(BALL_X_SPEED * -INITIAL_SPEED) / abs(BALL_X_SPEED)
+
+
+# функция отскока мяча
+def bounce(action):
+    global BALL_X_SPEED, BALL_Y_SPEED
+    # ударили ракеткой
+    if action == "strike":
+        BALL_Y_SPEED = random.randrange(-10, 10)
+        if abs(BALL_X_SPEED) < BALL_MAX_SPEED:
+            BALL_X_SPEED *= -BALL_SPEED_UP
+        else:
+            BALL_X_SPEED = -BALL_X_SPEED
+    else:
+        BALL_Y_SPEED = -BALL_Y_SPEED
+
+
+# устанавливаем окно
+root = Tk()
+root.title("PythonicWay Pong")
+
+# область анимации
+c = Canvas(root, width=WIDTH, height=HEIGHT, background="#003300")
+c.pack()
+
+# элементы игрового поля
+
+# левая линия
+c.create_line(PAD_W, 0, PAD_W, HEIGHT, fill="white")
+# правая линия
+c.create_line(WIDTH - PAD_W, 0, WIDTH - PAD_W, HEIGHT, fill="white")
+# центральная линия
+c.create_line(WIDTH / 2, 0, WIDTH / 2, HEIGHT, fill="white")
+
+# установка игровых объектов
+
+# создаем мяч
+BALL = c.create_oval(WIDTH / 2 - BALL_RADIUS / 2,
+                     HEIGHT / 2 - BALL_RADIUS / 2,
+                     WIDTH / 2 + BALL_RADIUS / 2,
+                     HEIGHT / 2 + BALL_RADIUS / 2, fill="white")
+
+# левая ракетка
+LEFT_PAD = c.create_line(PAD_W / 2, 0, PAD_W / 2, PAD_H, width=PAD_W, fill="yellow")
+
+# правая ракетка
+RIGHT_PAD = c.create_line(WIDTH - PAD_W / 2, 0, WIDTH - PAD_W / 2,
+                          PAD_H, width=PAD_W, fill="yellow")
+
+p_1_text = c.create_text(WIDTH - WIDTH / 6, PAD_H / 4,
+                         text=PLAYER_1_SCORE,
+                         font="Arial 20",
+                         fill="white")
+
+p_2_text = c.create_text(WIDTH / 6, PAD_H / 4,
+                         text=PLAYER_2_SCORE,
+                         font="Arial 20",
+                         fill="white")
+
+# добавим глобальные переменные для скорости движения мяча
+# по горизонтали
+BALL_X_CHANGE = 20
+# по вертикали
+BALL_Y_CHANGE = 0
+
+
+def move_ball():
+    # определяем координаты сторон мяча и его центра
+    ball_left, ball_top, ball_right, ball_bot = c.coords(BALL)
+    ball_center = (ball_top + ball_bot) / 2
+
+    # вертикальный отскок
+    # Если мы далеко от вертикальных линий - просто двигаем мяч
+    if ball_right + BALL_X_SPEED < right_line_distance and \
+            ball_left + BALL_X_SPEED > PAD_W:
+        c.move(BALL, BALL_X_SPEED, BALL_Y_SPEED)
+    # Если мяч касается своей правой или левой стороной границы поля
+    elif ball_right == right_line_distance or ball_left == PAD_W:
+        # Проверяем правой или левой стороны мы касаемся
+        if ball_right > WIDTH / 2:
+            # Если правой, то сравниваем позицию центра мяча
+            # с позицией правой ракетки.
+            # И если мяч в пределах ракетки делаем отскок
+            if c.coords(RIGHT_PAD)[1] < ball_center < c.coords(RIGHT_PAD)[3]:
+                bounce("strike")
+            else:
+                # Иначе игрок пропустил - тут оставим пока pass, его мы заменим на подсчет очков и респаун мячика
+                update_score("left")
+                spawn_ball()
+        else:
+            # То же самое для левого игрока
+            if c.coords(LEFT_PAD)[1] < ball_center < c.coords(LEFT_PAD)[3]:
+                bounce("strike")
+            else:
+                update_score("right")
+                spawn_ball()
+    # Проверка ситуации, в которой мячик может вылететь за границы игрового поля.
+    # В таком случае просто двигаем его к границе поля.
+    else:
+        if ball_right > WIDTH / 2:
+            c.move(BALL, right_line_distance - ball_right, BALL_Y_SPEED)
+        else:
+            c.move(BALL, -ball_left + PAD_W, BALL_Y_SPEED)
+    # горизонтальный отскок
+    if ball_top + BALL_Y_SPEED < 0 or ball_bot + BALL_Y_SPEED > HEIGHT:
+        bounce("ricochet")
+
+
+# зададим глобальные переменные скорости движения ракеток
+# скорось с которой будут ездить ракетки
+PAD_SPEED = 20
+# скорость левой платформы
+LEFT_PAD_SPEED = 0
+# скорость правой ракетки
+RIGHT_PAD_SPEED = 0
+
+
+# функция движения обеих ракеток
+def move_pads():
+    # для удобства создадим словарь, где ракетке соответствует ее скорость
+    PADS = {LEFT_PAD: LEFT_PAD_SPEED,
+            RIGHT_PAD: RIGHT_PAD_SPEED}
+    # перебираем ракетки
+    for pad in PADS:
+        # двигаем ракетку с заданной скоростью
+        c.move(pad, 0, PADS[pad])
+        # если ракетка вылезает за игровое поле возвращаем ее на место
+        if c.coords(pad)[1] < 0:
+            c.move(pad, 0, -c.coords(pad)[1])
+        elif c.coords(pad)[3] > HEIGHT:
+            c.move(pad, 0, HEIGHT - c.coords(pad)[3])
 
 
 def main():
-    global fps_clock, display_surf, basic_font, big_font
-    pg.init()
-    fps_clock = pg.time.Clock()
-    display_surf = pg.display.set_mode((window_w, window_h))
-    basic_font = pg.font.SysFont('arial', 20)
-    big_font = pg.font.SysFont('verdana', 45)
-    pg.display.set_caption('Тетрис Lite')
-    showText('Тетрис Lite')
-    while True:  # начинаем игру
-        runTetris()
-        pauseScreen()
-        showText('Игра закончена')
+    move_ball()
+    move_pads()
+    # вызываем саму себя каждые 30 миллисекунд
+    root.after(30, main)
 
 
-def runTetris():
-    cup = emptycup()
-    last_move_down = time.time()
-    last_side_move = time.time()
-    last_fall = time.time()
-    going_down = False
-    going_left = False
-    going_right = False
-    points = 0
-    level, fall_speed = calcSpeed(points)
-    fallingFig = getNewFig()
-    nextFig = getNewFig()
-
-    while True:
-        if fallingFig == None:
-            # если нет падающих фигур, генерируем новую
-            fallingFig = nextFig
-            nextFig = getNewFig()
-            last_fall = time.time()
-
-            if not checkPos(cup, fallingFig):
-                return  # если на игровом поле нет свободного места - игра закончена
-        quitGame()
-        for event in pg.event.get():
-            if event.type == KEYUP:
-                if event.key == K_SPACE:
-                    pauseScreen()
-                    showText('Пауза')
-                    last_fall = time.time()
-                    last_move_down = time.time()
-                    last_side_move = time.time()
-                elif event.key == K_LEFT:
-                    going_left = False
-                elif event.key == K_RIGHT:
-                    going_right = False
-                elif event.key == K_DOWN:
-                    going_down = False
-
-            elif event.type == KEYDOWN:
-                # перемещение фигуры вправо и влево
-                if event.key == K_LEFT and checkPos(cup, fallingFig, adjX=-1):
-                    fallingFig['x'] -= 1
-                    going_left = True
-                    going_right = False
-                    last_side_move = time.time()
-
-                elif event.key == K_RIGHT and checkPos(cup, fallingFig, adjX=1):
-                    fallingFig['x'] += 1
-                    going_right = True
-                    going_left = False
-                    last_side_move = time.time()
-
-                # поворачиваем фигуру, если есть место
-                elif event.key == K_UP:
-                    fallingFig['rotation'] = (fallingFig['rotation'] + 1) % len(figures[fallingFig['shape']])
-                    if not checkPos(cup, fallingFig):
-                        fallingFig['rotation'] = (fallingFig['rotation'] - 1) % len(figures[fallingFig['shape']])
-
-                # ускоряем падение фигуры
-                elif event.key == K_DOWN:
-                    going_down = True
-                    if checkPos(cup, fallingFig, adjY=1):
-                        fallingFig['y'] += 1
-                    last_move_down = time.time()
-
-                # мгновенный сброс вниз
-                elif event.key == K_RETURN:
-                    going_down = False
-                    going_left = False
-                    going_right = False
-                    for i in range(1, cup_h):
-                        if not checkPos(cup, fallingFig, adjY=i):
-                            break
-                    fallingFig['y'] += i - 1
-
-        # управление падением фигуры при удержании клавиш
-        if (going_left or going_right) and time.time() - last_side_move > side_freq:
-            if going_left and checkPos(cup, fallingFig, adjX=-1):
-                fallingFig['x'] -= 1
-            elif going_right and checkPos(cup, fallingFig, adjX=1):
-                fallingFig['x'] += 1
-            last_side_move = time.time()
-
-        if going_down and time.time() - last_move_down > down_freq and checkPos(cup, fallingFig, adjY=1):
-            fallingFig['y'] += 1
-            last_move_down = time.time()
-
-        if time.time() - last_fall > fall_speed:  # свободное падение фигуры
-            if not checkPos(cup, fallingFig, adjY=1):  # проверка "приземления" фигуры
-                addToCup(cup, fallingFig)  # фигура приземлилась, добавляем ее в содержимое стакана
-                points += clearCompleted(cup)
-                level, fall_speed = calcSpeed(points)
-                fallingFig = None
-            else:  # фигура пока не приземлилась, продолжаем движение вниз
-                fallingFig['y'] += 1
-                last_fall = time.time()
-
-        # рисуем окно игры со всеми надписями
-        display_surf.fill(bg_color)
-        drawTitle()
-        gamecup(cup)
-        drawInfo(points, level)
-        drawnextFig(nextFig)
-        if fallingFig != None:
-            drawFig(fallingFig)
-        pg.display.update()
-        fps_clock.tick(fps)
+# Установим фокус на Canvas чтобы он реагировал на нажатия клавиш
+c.focus_set()
 
 
-def txtObjects(text, font, color):
-    surf = font.render(text, True, color)
-    return surf, surf.get_rect()
+# Напишем функцию обработки нажатия клавиш
+def movement_handler(event):
+    global LEFT_PAD_SPEED, RIGHT_PAD_SPEED
+    if event.keysym == "w":
+        LEFT_PAD_SPEED = -PAD_SPEED
+    elif event.keysym == "s":
+        LEFT_PAD_SPEED = PAD_SPEED
+    elif event.keysym == "Up":
+        RIGHT_PAD_SPEED = -PAD_SPEED
+    elif event.keysym == "Down":
+        RIGHT_PAD_SPEED = PAD_SPEED
 
 
-def stopGame():
-    pg.quit()
-    sys.exit()
+# Привяжем к Canvas эту функцию
+c.bind("<KeyPress>", movement_handler)
 
 
-def checkKeys():
-    quitGame()
-
-    for event in pg.event.get([KEYDOWN, KEYUP]):
-        if event.type == KEYDOWN:
-            continue
-        return event.key
-    return None
-
-
-def showText(text):
-    titleSurf, titleRect = txtObjects(text, big_font, title_color)
-    titleRect.center = (int(window_w / 2) - 3, int(window_h / 2) - 3)
-    display_surf.blit(titleSurf, titleRect)
-
-    pressKeySurf, pressKeyRect = txtObjects('Нажмите любую клавишу для продолжения', basic_font, title_color)
-    pressKeyRect.center = (int(window_w / 2), int(window_h / 2) + 100)
-    display_surf.blit(pressKeySurf, pressKeyRect)
-
-    while checkKeys() == None:
-        pg.display.update()
-        fps_clock.tick()
+# Создадим функцию реагирования на отпускание клавиши
+def stop_pad(event):
+    global LEFT_PAD_SPEED, RIGHT_PAD_SPEED
+    if event.keysym in "ws":
+        LEFT_PAD_SPEED = 0
+    elif event.keysym in ("Up", "Down"):
+        RIGHT_PAD_SPEED = 0
 
 
-def quitGame():
-    for event in pg.event.get(QUIT):  # проверка всех событий, приводящих к выходу из игры
-        stopGame()
-    for event in pg.event.get(KEYUP):
-        if event.key == K_ESCAPE:
-            stopGame()
-        pg.event.post(event)
+# Привяжем к Canvas эту функцию
+c.bind("<KeyRelease>", stop_pad)
 
+# запускаем движение
+main()
 
-def calcSpeed(points):
-    # вычисляет уровень
-    level = int(points / 10) + 1
-    fall_speed = 0.27 - (level * 0.02)
-    return level, fall_speed
-
-
-def getNewFig():
-    # возвращает новую фигуру со случайным цветом и углом поворота
-    shape = random.choice(list(figures.keys()))
-    newFigure = {'shape': shape,
-                 'rotation': random.randint(0, len(figures[shape]) - 1),
-                 'x': int(cup_w / 2) - int(fig_w / 2),
-                 'y': -2,
-                 'color': random.randint(0, len(colors) - 1)}
-    return newFigure
-
-
-def addToCup(cup, fig):
-    for x in range(fig_w):
-        for y in range(fig_h):
-            if figures[fig['shape']][fig['rotation']][y][x] != empty:
-                cup[x + fig['x']][y + fig['y']] = fig['color']
-
-
-def emptycup():
-    # создает пустой стакан
-    cup = []
-    for i in range(cup_w):
-        cup.append([empty] * cup_h)
-    return cup
-
-
-def incup(x, y):
-    return x >= 0 and x < cup_w and y < cup_h
-
-
-def checkPos(cup, fig, adjX=0, adjY=0):
-    # проверяет, находится ли фигура в границах стакана, не сталкиваясь с другими фигурами
-    for x in range(fig_w):
-        for y in range(fig_h):
-            abovecup = y + fig['y'] + adjY < 0
-            if abovecup or figures[fig['shape']][fig['rotation']][y][x] == empty:
-                continue
-            if not incup(x + fig['x'] + adjX, y + fig['y'] + adjY):
-                return False
-            if cup[x + fig['x'] + adjX][y + fig['y'] + adjY] != empty:
-                return False
-    return True
-
-
-def isCompleted(cup, y):
-    # проверяем наличие полностью заполненных рядов
-    for x in range(cup_w):
-        if cup[x][y] == empty:
-            return False
-    return True
-
-
-def clearCompleted(cup):
-    # Удаление заполенных рядов и сдвиг верхних рядов вниз
-    removed_lines = 0
-    y = cup_h - 1
-    while y >= 0:
-        if isCompleted(cup, y):
-            for pushDownY in range(y, 0, -1):
-                for x in range(cup_w):
-                    cup[x][pushDownY] = cup[x][pushDownY - 1]
-            for x in range(cup_w):
-                cup[x][0] = empty
-            removed_lines += 1
-        else:
-            y -= 1
-    return removed_lines
-
-
-def convertCoords(block_x, block_y):
-    return (side_margin + (block_x * block)), (top_margin + (block_y * block))
-
-
-def drawBlock(block_x, block_y, color, pixelx=None, pixely=None):
-    # отрисовка квадратных блоков, из которых состоят фигуры
-    if color == empty:
-        return
-    if pixelx == None and pixely == None:
-        pixelx, pixely = convertCoords(block_x, block_y)
-    pg.draw.rect(display_surf, colors[color], (pixelx + 1, pixely + 1, block - 1, block - 1), 0, 3)
-    pg.draw.rect(display_surf, lightcolors[color], (pixelx + 1, pixely + 1, block - 4, block - 4), 0, 3)
-    pg.draw.circle(display_surf, colors[color], (pixelx + block / 2, pixely + block / 2), 5)
-
-
-def gamecup(cup):
-    # граница игрового поля-стакана
-    pg.draw.rect(display_surf, brd_color, (side_margin - 4, top_margin - 4, (cup_w * block) + 8, (cup_h * block) + 8),
-                 5)
-
-    # фон игрового поля
-    pg.draw.rect(display_surf, bg_color, (side_margin, top_margin, block * cup_w, block * cup_h))
-    for x in range(cup_w):
-        for y in range(cup_h):
-            drawBlock(x, y, cup[x][y])
-
-
-def drawTitle():
-    titleSurf = big_font.render('Тетрис Lite', True, title_color)
-    titleRect = titleSurf.get_rect()
-    titleRect.topleft = (window_w - 425, 30)
-    display_surf.blit(titleSurf, titleRect)
-
-
-def drawInfo(points, level):
-    pointsSurf = basic_font.render(f'Баллы: {points}', True, txt_color)
-    pointsRect = pointsSurf.get_rect()
-    pointsRect.topleft = (window_w - 550, 180)
-    display_surf.blit(pointsSurf, pointsRect)
-
-    levelSurf = basic_font.render(f'Уровень: {level}', True, txt_color)
-    levelRect = levelSurf.get_rect()
-    levelRect.topleft = (window_w - 550, 250)
-    display_surf.blit(levelSurf, levelRect)
-
-    pausebSurf = basic_font.render('Пауза: пробел', True, info_color)
-    pausebRect = pausebSurf.get_rect()
-    pausebRect.topleft = (window_w - 550, 420)
-    display_surf.blit(pausebSurf, pausebRect)
-
-    escbSurf = basic_font.render('Выход: Esc', True, info_color)
-    escbRect = escbSurf.get_rect()
-    escbRect.topleft = (window_w - 550, 450)
-    display_surf.blit(escbSurf, escbRect)
-
-
-def drawFig(fig, pixelx=None, pixely=None):
-    figToDraw = figures[fig['shape']][fig['rotation']]
-    if pixelx == None and pixely == None:
-        pixelx, pixely = convertCoords(fig['x'], fig['y'])
-
-    # отрисовка элементов фигур
-    for x in range(fig_w):
-        for y in range(fig_h):
-            if figToDraw[y][x] != empty:
-                drawBlock(None, None, fig['color'], pixelx + (x * block), pixely + (y * block))
-
-
-def drawnextFig(fig):  # превью следующей фигуры
-    nextSurf = basic_font.render('Следующая:', True, txt_color)
-    nextRect = nextSurf.get_rect()
-    nextRect.topleft = (window_w - 150, 180)
-    display_surf.blit(nextSurf, nextRect)
-    drawFig(fig, pixelx=window_w - 150, pixely=230)
-
-
-if __name__ == '__main__':
-    main()
+# запускаем работу окна
+root.mainloop()
